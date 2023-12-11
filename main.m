@@ -16,7 +16,9 @@ clc
 addpath('functions')
 addpath('functions/driverThorlabsLTS/')
 addpath('data')
+addpath('data\images\')
 
+load('cobottapos.mat')
 timeoutros = 3;
 
 %% init Denso Cobotta 
@@ -35,7 +37,7 @@ cobotta = ctrl_cobotta.AddRobot('arm');
 
  % check if LTS class is in the path
  % clone git repo if not 
-checkLTSrepo()
+checkLTSrepo
 
 % list lts devices
 SN = LTS.listdevices; 
@@ -55,7 +57,7 @@ lts.connect(SN{1})
 %   $ roslaunch zed_wrapper zedm.launch
 
 
-ip = '172.16.6.204';
+ip = '172.16.9.196';
 try 
     rosinit(ip, 'NodeName','HostPc') 
 catch
@@ -73,7 +75,11 @@ zed_sub_info = rossubscriber('/zedm/zed_node/left/camera_info');
 caminfo = receive(zed_sub_info,timeoutros);
 caminitodommsg = receive(zed_sub_odom,timeoutros);
 intrinsics = caminfo2intrinsics(caminfo);
-caminitpose= odommsg2pose(caminitodommsg);
+caminitpose = odommsg2pose(caminitodommsg);
+
+tic
+test = receive(zed_sub_left);
+t = toc;
 
 %% move lts to inital position
 
@@ -87,12 +93,21 @@ lts.movetopos(130,30,30)
 %% move cobotta to inital position
 
 % get arm semaphore 
-cobotta.Execute('TakeArm')
+cobotta.Execute('TakeArm');
 % start motor
-cobotta.Execute('motor',true)
+cobotta.Execute('motor',true);
 % set robot velocoty
-cobotta.Execute('ExtSpeed',10) % 10% 
+cobotta.Execute('ExtSpeed',10); % 10% 
 
 % move to initial pos
 initJoint = 'J(0, 30, 60, 0, 0, 0)';
-cobotta.Move(1,initJoint)
+cobotta.Move(1,initJoint);
+
+%% run sequence
+
+for pos = 1:size(cobottapos,1)
+    jointvalues = cobottapos(pos,3).jointvaluesstring;
+    cobotta.Move(1,jointvalues);
+    pause(1)
+    takesnapshot(zed_sub_left,pos);
+end
