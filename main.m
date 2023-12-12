@@ -16,7 +16,7 @@ clc
 addpath('functions')
 addpath('functions/driverThorlabsLTS/')
 addpath('data')
-addpath('data\images\')
+addpath('data/images/')
 
 load('cobottapos.mat')
 
@@ -96,7 +96,7 @@ cobotta.Execute('TakeArm');
 % start motor
 cobotta.Execute('motor',true);
 % set robot velocoty
-cobotta.Execute('ExtSpeed',30); % 10% 
+cobotta.Execute('ExtSpeed',40); % 10% 
 
 % move to initial pos
 initJoint = 'J(0, 30, 60, 0, 0, 0)';
@@ -104,36 +104,44 @@ cobotta.Move(1,initJoint);
 
 %% run sequence
 
-disp('run sequence...')
-
+% init
 posetagreltocam = [];
 istagdetected = [];
+posegripper = [];
+
+disp('run sequence...')
 
 for pos = 1:size(cobottapos,1)
+
+    % get joint values pos
     jointvalues = cobottapos(pos,3).jointvaluesstring;
+    % move to given pos
     cobotta.Move(1,jointvalues);
+
+    % pause for 800 ms
     pause(.8)
+
+    % get pose gripper rel to base and save in array
+    posegripper = [posegripper; curpos2rigidtform3d(cobotta.Execute('CurPos'))];
+
+    % get image zed 
     image = takesnapshot(zed_sub_left,pos);
+
+    % detect AprilTag with target ID in image 
     [posetag, isdetected] = readapriltagtargetID(image,intrinsics,tagsize,targetID);
+
+    % save in array
     posetagreltocam = [posetagreltocam; posetag];
     istagdetected = [istagdetected; isdetected];
 end
 
-validtagposes = sum(istagdetected);
+disp('...done')
 
-if validtagposes > 5
-    disp('...ok done. got enough valid tag poses.')
-elseif validtagposes > 1
-    msg = ['hand eye calibration not recommended \n'...
-        'please get more valid tag poses'];
-    warning('u:stuffed:it',msg)
-else
-    msg = ['hand eye calibration not possible \n' ...
-        'minimun requirement are two valid tag poses'];
-    error('u:stuffed:it',msg)
-end
+% check if enough valid poses detected 
+checktagposes(istagdetected)
 
 % merge to table 
+cobottapos.posegripper = posegripper;
 cobottapos.posetagreltocam = posetagreltocam;
 cobottapos.istagdetected = istagdetected;
 
