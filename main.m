@@ -19,7 +19,10 @@ addpath('data')
 addpath('data\images\')
 
 load('cobottapos.mat')
-timeoutros = 3;
+
+timeoutros = 3; % s 
+tagsize = 60;   % mm
+targetID = 22;  % ID of used apriltag
 
 %% init Denso Cobotta 
 
@@ -93,7 +96,7 @@ cobotta.Execute('TakeArm');
 % start motor
 cobotta.Execute('motor',true);
 % set robot velocoty
-cobotta.Execute('ExtSpeed',10); % 10% 
+cobotta.Execute('ExtSpeed',30); % 10% 
 
 % move to initial pos
 initJoint = 'J(0, 30, 60, 0, 0, 0)';
@@ -101,18 +104,41 @@ cobotta.Move(1,initJoint);
 
 %% run sequence
 
+disp('run sequence...')
+
 posetagreltocam = [];
 istagdetected = [];
 
 for pos = 1:size(cobottapos,1)
     jointvalues = cobottapos(pos,3).jointvaluesstring;
     cobotta.Move(1,jointvalues);
-    pause(1)
+    pause(.8)
     image = takesnapshot(zed_sub_left,pos);
-    [posetag, isdetected] = readapriltagtargetID(image,intrinsics,60,22);
+    [posetag, isdetected] = readapriltagtargetID(image,intrinsics,tagsize,targetID);
     posetagreltocam = [posetagreltocam; posetag];
     istagdetected = [istagdetected; isdetected];
 end
 
+validtagposes = sum(istagdetected);
+
+if validtagposes > 5
+    disp('...ok done. got enough valid tag poses.')
+elseif validtagposes > 1
+    msg = ['hand eye calibration not recommended \n'...
+        'please get more valid tag poses'];
+    warning('u:stuffed:it',msg)
+else
+    msg = ['hand eye calibration not possible \n' ...
+        'minimun requirement are two valid tag poses'];
+    error('u:stuffed:it',msg)
+end
+
+% merge to table 
 cobottapos.posetagreltocam = posetagreltocam;
 cobottapos.istagdetected = istagdetected;
+
+% delete table rows, where no tag is detected 
+cobottavalidpos = cobottapos(cobottapos.istagdetected == true,:);
+cobottavalidpos.posID = transpose(1:size(cobottavalidpos,1));
+
+save("data\cobottavalidpos.mat","cobottavalidpos");
