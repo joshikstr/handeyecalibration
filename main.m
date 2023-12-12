@@ -77,14 +77,10 @@ caminitodommsg = receive(zed_sub_odom,timeoutros);
 intrinsics = caminfo2intrinsics(caminfo);
 caminitpose = odommsg2pose(caminitodommsg);
 
-tic
-test = receive(zed_sub_left);
-t = toc;
-
 %% move lts to inital position
 
 % change homing velocoty
-lts.sethomevel(6)
+lts.sethomevel(7)
 % homing lts
 lts.home
 % move to initial pos
@@ -105,9 +101,18 @@ cobotta.Move(1,initJoint);
 
 %% run sequence
 
+posetagreltocam = [];
+istagdetected = [];
+
 for pos = 1:size(cobottapos,1)
     jointvalues = cobottapos(pos,3).jointvaluesstring;
     cobotta.Move(1,jointvalues);
     pause(1)
-    takesnapshot(zed_sub_left,pos);
+    image = takesnapshot(zed_sub_left,pos);
+    [posetag, isdetected] = readapriltagtargetID(image,intrinsics,60,22);
+    posetagreltocam = [posetagreltocam; posetag];
+    istagdetected = [istagdetected; isdetected];
 end
+
+cobottapos.posetagreltocam = posetagreltocam;
+cobottapos.istagdetected = istagdetected;
